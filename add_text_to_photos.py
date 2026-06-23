@@ -1,104 +1,125 @@
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-INPUT_FOLDER = "./Input"  
-OUTPUT_FOLDER = "./Output"
-MAX_TEXT_WIDTH_RATIO = 0.85  # 85% of image width max
-SAFE_MARGIN = 30
+INPUT_FOLDER = "."
+OUTPUT_FOLDER = "Output"
+
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp")
+
+BOTTOM_BAR_RATIO = 0.14
+MIN_BAR_HEIGHT = 50
+MAX_BAR_HEIGHT = 140
+
+TEXT_WIDTH_RATIO = 0.92
+START_FONT_RATIO = 0.065
+MIN_FONT_SIZE = 12
+
+TEXT_COLOR = (255, 255, 255)
+OUTLINE_COLOR = (0, 0, 0)
+BAR_COLOR = (0, 0, 0)
+JPEG_QUALITY = 97
+
+FONT_CANDIDATES = [
+    r"C:\Windows\Fonts\arialbd.ttf",
+    r"C:\Windows\Fonts\Arialbd.ttf",
+    r"C:\Windows\Fonts\segoeuib.ttf",
+    r"C:\Windows\Fonts\calibrib.ttf",
+]
 
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-def find_scaled_font(text, img_width, font_paths):
-    """Find perfect font size that fits image width"""
-    target_width = img_width * MAX_TEXT_WIDTH_RATIO
-    
-    font_size = 12
-    best_font = ImageFont.load_default()
-    
-    while font_size <= 100:  # Max 100px
-        test_font = ImageFont.load_default()
-        for path in font_paths:
-            try:
-                test_font = ImageFont.truetype(path, font_size)
-                break
-            except:
-                continue
-        
-        bbox = ImageDraw.Draw(Image.new('RGB', (1,1))).textbbox((0,0), text, font=test_font)
-        text_width = bbox[2] - bbox[0]
-        
-        if text_width <= target_width:
-            best_font = test_font
-        else:
-            break  # Too big, stop
-            
-        font_size += 2
-    
-    return best_font, font_size - 2
 
-for filename in os.listdir(INPUT_FOLDER):
-    if not (filename.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff'))):
-        continue
-    
-    img_path = os.path.join(INPUT_FOLDER, filename)
-    
-    try:
-        # Open image
-        original = Image.open(img_path)
-        width, height = original.size
-        
-        # Find perfect font size
-        text = os.path.splitext(filename)[0]
-        font_paths = ["C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/arial.ttf"]
-        font, font_size = find_scaled_font(text, width, font_paths)
-        
-        print(f"📏 {filename}: {font_size}px font")
-        
-        # Create canvas with extra bottom space
-        canvas_height = height + 100
-        img = Image.new('RGBA', (width, canvas_height), (0,0,0,0))
-        img.paste(original, (0, 0))
-        
-        # Text layer
-        text_layer = Image.new('RGBA', img.size, (0,0,0,0))
-        draw = ImageDraw.Draw(text_layer)
-        
-        # **CENTERED POSITION CALCULATION**
-        bbox = draw.textbbox((0, 0), text, font=font)
+def get_font_path():
+    for path in FONT_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+FONT_PATH = get_font_path()
+
+
+def load_font(size):
+    if FONT_PATH:
+        return ImageFont.truetype(FONT_PATH, size)
+    return ImageFont.load_default()
+
+
+def fit_font(draw, text, image_width, bar_height):
+    max_width = int(image_width * TEXT_WIDTH_RATIO)
+    start_size = max(MIN_FONT_SIZE, int(image_width * START_FONT_RATIO))
+
+    for size in range(start_size, MIN_FONT_SIZE - 1, -1):
+        font = load_font(size)
+
+        stroke_width = max(2, size // 12)
+
+        bbox = draw.textbbox(
+            (0, 0),
+            text,
+            font=font,
+            stroke_width=stroke_width
+        )
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
-        
-        # **CENTER BOTTOM**: x = center of image, y = bottom with margin
-        x = (width - text_width) // 2
-        y = height
-        
-        # Thick outline + text
-        outline_color = (0, 0, 0, 255)
-        text_color = (255, 255, 255, 255)
-        
-        # Draw thick black outline
-        for dx in range(-4, 5):
-            for dy in range(-4, 5):
-                if dx != 0 or dy != 0:
-                    draw.text((x + dx, y + dy), text, font=font, fill=outline_color)
-        
-        # Draw white text on top
-        draw.text((x, y), text, font=font, fill=text_color)
-        
-        # Combine layers
-        img = Image.alpha_composite(img, text_layer)
-        img = img.crop(img.getbbox())
-        
-        # Save
-        out_path = os.path.join(OUTPUT_FOLDER, filename)
-        if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
-            img.convert('RGB').save(out_path, 'JPEG', quality=95)
-        else:
-            img.save(out_path, 'PNG')
-            
-        print(f"✅ {filename} - {font_size}px CENTERED at bottom!")
-        
-    except Exception as e:
-        print(f"❌ Error {filename}: {e}")
 
-print("ALL IMAGES DONE")
+        if text_width <= max_width and text_height <= int(bar_height * 0.75):
+            return font, stroke_width, text_width, text_height, bbox
+
+    font = load_font(MIN_FONT_SIZE)
+    stroke_width = max(2, MIN_FONT_SIZE // 12)
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    return font, stroke_width, text_width, text_height, bbox
+
+
+for filename in os.listdir(INPUT_FOLDER):
+    if not filename.lower().endswith(IMAGE_EXTS):
+        continue
+
+    input_path = os.path.join(INPUT_FOLDER, filename)
+
+    try:
+        original = Image.open(input_path).convert("RGB")
+        width, height = original.size
+
+        text = os.path.splitext(filename)[0]
+
+        bar_height = int(height * BOTTOM_BAR_RATIO)
+        bar_height = max(MIN_BAR_HEIGHT, min(MAX_BAR_HEIGHT, bar_height))
+
+        canvas = Image.new("RGB", (width, height + bar_height), BAR_COLOR)
+        canvas.paste(original, (0, 0))
+
+        draw = ImageDraw.Draw(canvas)
+
+        font, stroke_width, text_width, text_height, bbox = fit_font(
+            draw, text, width, bar_height
+        )
+
+        text_x = (width - text_width) // 2 - bbox[0]
+        text_y = height + (bar_height - text_height) // 2 - bbox[1]
+
+        draw.text(
+            (text_x, text_y),
+            text,
+            font=font,
+            fill=TEXT_COLOR,
+            stroke_width=stroke_width,
+            stroke_fill=OUTLINE_COLOR
+        )
+
+        output_path = os.path.join(OUTPUT_FOLDER, filename)
+
+        if filename.lower().endswith((".jpg", ".jpeg")):
+            canvas.save(output_path, "JPEG", quality=JPEG_QUALITY, subsampling=0)
+        else:
+            canvas.save(output_path)
+
+        print(f"Done: {filename}")
+
+    except Exception as e:
+        print(f"Error processing {filename}: {e}")
+
+print("All images processed.")

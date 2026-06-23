@@ -1,7 +1,7 @@
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-INPUT_FOLDER = "./Images"  
+INPUT_FOLDER = "./Input"  
 OUTPUT_FOLDER = "./Output"
 MAX_TEXT_WIDTH_RATIO = 0.85  # 85% of image width max
 SAFE_MARGIN = 30

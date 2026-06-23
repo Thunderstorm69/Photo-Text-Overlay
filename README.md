@@ -75,7 +75,3 @@ project-folder/
 - Adding captions based on file names.
 - Organizing old album images before sharing.
 - Preparing images for family, school, or project archives.
-
-## License
-
-You can add your preferred license here, for example MIT.

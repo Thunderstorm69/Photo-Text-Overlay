@@ -56,9 +56,10 @@ python add_text_to_photos.py
 ```text
 project-folder/
 ├── add_text_to_photos.py
-├── photo1.jpg
-├── photo2.jpg
-├── photo3.png
+├── input/
+   ├── photo1.jpg
+   ├── photo2.jpg
+   ├── photo3.png
 └── output/
 ```
 
